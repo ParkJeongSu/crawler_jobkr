@@ -1,49 +1,76 @@
-// create xlsx file Moudle
-var Excel = require('exceljs');
-// http get request
-var request = require("sync-request");
-// parsing 
-var cheerio = require("cheerio");
+# 엑셀파일을 만들 모듈을 임포트 한다.
+import xlsxwriter
+# request 모듈을 임포트 한다.
+import requests
+# 파싱에 필요한 BeautifulSoup를 임포트 한다.
+from bs4 import BeautifulSoup
 
-var filename = 'crawl_saramin.xlsx';
-var workbook = new Excel.Workbook();
-var worksheet = workbook.addWorksheet('My Sheet');
+# 페이지 정보를 가져오기 위한 get 요청
+req = requests.get('http://www.jobkorea.co.kr/starter/?schLocal=&schPart=10016&schMajor=&schEduLevel=&schWork=&schCType=&isSaved=1&LinkGubun=0&LinkNo=0&Page=1&schType=0&schGid=0&schOrderBy=0&schTxt=')
+# HTML 소스 가져오기
+html = req.text
+# BeautifulSoup으로 html소스를 python객체로 변환하기
+# 첫 인자는 html소스코드, 두 번째 인자는 어떤 parser를 이용할지 명시.
+# 이 글에서는 Python 내장 html.parser를 이용했다.
+soup = BeautifulSoup(html, 'html.parser')
+# 페이지 정보를 가져온다.
+page = soup.select(
+    '.tplPagination > ul > li'
+    )
+# 기업명을 저장할 name
+name = []
+# 마감일자를 저장하기 위한 endday
+endday = []
+# 잡코리아는 페이지별로 받을수 있는 list가 정해져 있어서 page 별로 request를 보내야한다.
+urlpage="http://www.jobkorea.co.kr/Starter?JoinPossible_Stat=0&schPart=%2C10016%2C&schOrderBy=0&LinkGubun=0&LinkNo=0&schType=0&schGid=0&Page="
+# page 만큼 for문을 돈다.
+for pa in page:
+    sendpage=urlpage+str(pa.text)
+    data = requests.get(sendpage)
+    rawdata = data.text
+    parser = BeautifulSoup(rawdata, 'html.parser')
+    #리스트를 realdata 에 저장한후 그 값만큼 다시 for문을 돈다.
+    realdata = parser.select(
+    '.filterList li'
+    )
+    for q in realdata:
+        # temp1값엔 기업명에 해당하는 값을 넣고
+        temp1=q.select(
+            '.co .coTit .coLink'
+            )
+        # temp2 값엔 마감일에 해당하는 값을 넣는다.
+        temp2=q.select(
+            '.side .day'
+        )
+        # 그리고 그 값을 각각 name 과 endday에 append를 해준다.
+        name.append(temp1[0].string)
+        endday.append(temp2[0].string)
+# 마지막으로 name 과 endday에 해당하는 값을 엑셀에 저장.
+print(name)
+print(endday)
 
-var url = "http://www.saramin.co.kr/zf_user/jobs/public/list?sort=ud&quick_apply=&search_day=&keyword=&pr_exp_lv%5B%5D=1&up_cd%5B%5D=3";
-var request = require('sync-request');
-var res = request('GET', url);
-var $=cheerio.load(res.getBody());
-var postElements = $("table.common_recruit_list tr");
+# Create an new Excel file and add a worksheet.
+workbook = xlsxwriter.Workbook('sample.xlsx')
+worksheet = workbook.add_worksheet()
 
-var object= new Object();
-object.Name=[];
-object.endDate=[];
+# Widen the first column to make the text clearer.
+worksheet.set_column('A:A', 20)
+worksheet.set_column('B:B', 20)
 
-postElements.each(function() {
-    var endDate = $(this).find("td.support_info p.deadlines").text();
-    var companyTitle = $(this).find("td.company_nm a").attr("title");
-    
-    object.Name.push(companyTitle);
-    object.endDate.push(endDate);
-  });
+# Add a bold format to use to highlight cells.
+bold = workbook.add_format({'bold': True})
 
-//console.log(object); // check object
+# Write some simple text.
+worksheet.write('A1', '기업명')
 
-worksheet.columns = [
-    { header: '기업명', key: 'id', width: 15 },
-    { header: '마감일자', key: 'endDate', width: 15 }
-];
- 
-var i=2;
-for(i=2;i<=object.Name.length+2;i++){
-    worksheet.getRow(i).getCell(1).value=object.Name[i-2];
-    worksheet.getRow(i).getCell(2).value=object.endDate[i-2];
-}
-
-workbook.xlsx.writeFile(filename)
-    .then(function() {
-        console.log("xlsx file created");
-        
-    });
+# Text with formatting.
+worksheet.write('B1', '마감일자')
+number=0
+for ind in name:
+    # Write some numbers, with row/column notation.
+    worksheet.write(number+1, 0, name[number])
+    worksheet.write(number+1, 1, endday[number])
+    number=number+1
 
 
+workbook.close()
